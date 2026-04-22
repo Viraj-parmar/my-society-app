@@ -299,6 +299,16 @@ body {
   text-decoration: underline;
 }
 
+@media (max-width: 480px) {
+  .notif-dropdown {
+    position: fixed;
+    top: 75px;
+    right: 1.5rem;
+    left: 1.5rem;
+    width: auto;
+  }
+}
+
 /* DASHBOARD GRID */
 .dashboard-grid {
   display: grid;
