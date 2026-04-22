@@ -82,17 +82,32 @@
         </button>
         <h1>Dashboard</h1>
       </div>
-      <div class="header-actions">
-        <button class="notif-btn">
+      <div class="header-actions" style="position: relative;">
+        <button class="notif-btn" id="notifBtn" onclick="document.getElementById('notifDropdown').classList.toggle('show'); event.stopPropagation();">
           <i class="ph ph-bell"></i>
           <span class="notif-dot"></span>
         </button>
+        <!-- Notification Dropdown -->
+        <div id="notifDropdown" class="notif-dropdown">
+          <div class="notif-header">
+            <h4>Notifications</h4>
+            <div id="notifHeaderActions" style="display: flex; align-items: center; gap: 0.5rem;">
+              <span class="notif-badge" id="notifBadge" style="display: none;">0 New</span>
+            </div>
+          </div>
+          <div class="notif-list" id="notifList">
+            <!-- Dynamically populated by JS -->
+          </div>
+          <div class="notif-footer">
+            <button onclick="window.markAllNotifAsRead(event)">Mark all as read</button>
+          </div>
+        </div>
       </div>
     </header>
 
     <div class="dashboard-grid">
       <!-- Card 1 -->
-      <div class="dash-card">
+      <div class="dash-card" onclick="window.location.href='./html/maintenance.html'">
         <div class="card-top">
           <span class="card-title">Pending Payments</span>
           <div class="icon-wrapper icon-cyan">
@@ -106,7 +121,7 @@
       </div>
 
       <!-- Card 2 -->
-      <div class="dash-card">
+      <div class="dash-card" onclick="window.location.href='./html/complaints.html'">
         <div class="card-top">
           <span class="card-title">Active Complaints</span>
           <div class="icon-wrapper icon-red">
@@ -120,7 +135,7 @@
       </div>
 
       <!-- Card 3 -->
-      <div class="dash-card">
+      <div class="dash-card" onclick="window.location.href='./html/events.html'">
         <div class="card-top">
           <span class="card-title">Upcoming Events</span>
           <div class="icon-wrapper icon-green">
@@ -134,7 +149,7 @@
       </div>
 
       <!-- Card 4 -->
-      <div class="dash-card">
+      <div class="dash-card" onclick="window.location.href='./html/notice-board.html'">
         <div class="card-top">
           <span class="card-title">Active Notices</span>
           <div class="icon-wrapper icon-yellow">

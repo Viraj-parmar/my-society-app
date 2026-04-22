@@ -98,6 +98,18 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   });
 
+  // Notification close when clicked outside
+  document.addEventListener('click', (e) => {
+    const notifBtn = document.getElementById('notifBtn');
+    const notifDropdown = document.getElementById('notifDropdown');
+    
+    if (notifBtn && notifDropdown) {
+      if (!notifBtn.contains(e.target) && !notifDropdown.contains(e.target)) {
+        notifDropdown.classList.remove('show');
+      }
+    }
+  });
+
 });
 
 // Data loading functions for inner pages
@@ -130,6 +142,123 @@ function loadAllData() {
   loadMaintenance();
   loadNotices();
   loadReports();
+  loadNotifications();
+}
+
+function loadNotifications() {
+  const list = document.getElementById('notifList');
+  const badge = document.getElementById('notifBadge');
+  const dot = document.querySelector('.notif-dot');
+  if(!list) return;
+
+  let notifs = JSON.parse(localStorage.getItem('notifications'));
+  if(!notifs || notifs.length === 0) {
+    if(!localStorage.getItem('notifications_initialized')) {
+      notifs = [
+        { id: 1, message: 'Maintenance due in 3 days.', time: 'System', icon: 'ph-warning-circle', colorBg: '#ef444415', colorText: '#ef4444', isRead: false },
+        { id: 2, message: 'New Notice: Water Interruption', time: 'Admin', icon: 'ph-info', colorBg: '#0ea5e915', colorText: '#0ea5e9', isRead: false }
+      ];
+      localStorage.setItem('notifications', JSON.stringify(notifs));
+      localStorage.setItem('notifications_initialized', 'true');
+    } else {
+      notifs = [];
+    }
+  }
+
+  list.innerHTML = '';
+  let unreadCount = 0;
+  
+  notifs.forEach((n, idx) => {
+    if(!n.isRead) unreadCount++;
+    const div = document.createElement('div');
+    div.className = `notif-item ${n.isRead ? '' : 'unread'}`;
+    div.innerHTML = `
+      <div class="notif-icon" style="background:${n.colorBg || '#0ea5e915'}; color:${n.colorText || '#0ea5e9'};"><i class="ph ${n.icon || 'ph-bell'}"></i></div>
+      <div class="notif-content" style="flex: 1;">
+        <p>${n.message}</p>
+        <span>${n.time}</span>
+      </div>
+      ${window.isAdmin ? `<button onclick="event.stopPropagation(); window.deleteNotification(${idx})" style="background: none; border: none; color: #ef4444; cursor: pointer; padding: 0.2rem;"><i class="ph ph-trash"></i></button>` : ''}
+    `;
+    list.appendChild(div);
+  });
+
+  if(unreadCount > 0) {
+    if(badge) { badge.style.display = 'inline-block'; badge.textContent = `${unreadCount} New`; }
+    if(dot) dot.style.display = 'block';
+  } else {
+    if(badge) badge.style.display = 'none';
+    if(dot) dot.style.display = 'none';
+    if(notifs.length === 0) list.innerHTML = '<div style="padding: 1.5rem; text-align: center; color: var(--text-muted); font-size: 0.85rem;">No new notifications</div>';
+  }
+
+  const headerActions = document.getElementById('notifHeaderActions');
+  if(headerActions && window.isAdmin) {
+    if(!document.getElementById('addNotifBtn')) {
+      const btn = document.createElement('button');
+      btn.id = 'addNotifBtn';
+      btn.innerHTML = '<i class="ph ph-plus-circle"></i>';
+      btn.style.cssText = 'background: none; border: none; font-size: 1.35rem; color: #10b981; cursor: pointer; display: flex; align-items: center; transition: transform 0.2s;';
+      btn.onmouseover = () => btn.style.transform = 'scale(1.1)';
+      btn.onmouseout = () => btn.style.transform = 'none';
+      btn.onclick = (e) => { e.stopPropagation(); window.openAddNotificationModal(); };
+      headerActions.appendChild(btn);
+    }
+  }
+}
+
+window.deleteNotification = function(idx) {
+  let notifs = JSON.parse(localStorage.getItem('notifications') || '[]');
+  notifs.splice(idx, 1);
+  localStorage.setItem('notifications', JSON.stringify(notifs));
+  loadNotifications();
+}
+
+window.markAllNotifAsRead = function(e) {
+  if (e) e.stopPropagation();
+  let notifs = JSON.parse(localStorage.getItem('notifications') || '[]');
+  notifs.forEach(n => n.isRead = true);
+  localStorage.setItem('notifications', JSON.stringify(notifs));
+  loadNotifications();
+}
+
+window.openAddNotificationModal = function() {
+  const content = `
+    <div style="display: flex; flex-direction: column; gap: 1.25rem;">
+      <div>
+        <label style="display: block; font-size: 0.85rem; font-weight: 500; margin-bottom: 0.35rem; color: var(--text-muted);">Notification Message</label>
+        <textarea id="notif-msg" placeholder="e.g. Server maintenance tonight..." rows="3" style="width: 100%; padding: 0.75rem; border: 1px solid var(--card-border); border-radius: 0.5rem; font-family: inherit; font-size: 0.95rem; outline: none; transition: border-color 0.2s; resize: vertical;" onfocus="this.style.borderColor='#0ea5e9'" onblur="this.style.borderColor='var(--card-border)'"></textarea>
+      </div>
+      <div>
+        <label style="display: block; font-size: 0.85rem; font-weight: 500; margin-bottom: 0.35rem; color: var(--text-muted);">Type</label>
+        <select id="notif-type" style="width: 100%; padding: 0.75rem; border: 1px solid var(--card-border); border-radius: 0.5rem; font-family: inherit; font-size: 0.95rem; background: white; outline: none; transition: border-color 0.2s;" onfocus="this.style.borderColor='#0ea5e9'" onblur="this.style.borderColor='var(--card-border)'">
+          <option value="info">General Info (Blue)</option>
+          <option value="alert">Alert (Red)</option>
+          <option value="success">Success (Green)</option>
+        </select>
+      </div>
+    </div>
+  `;
+  window.openModal('Send Notification', content, () => {
+    const msg = document.getElementById('notif-msg').value;
+    const type = document.getElementById('notif-type').value;
+    if(!msg.trim()) {
+      if(window.showToast) window.showToast('Please enter a message', 'error');
+      return;
+    }
+    
+    let colorBg = '#0ea5e915', colorText = '#0ea5e9', icon = 'ph-info';
+    if (type === 'alert') { colorBg = '#ef444415'; colorText = '#ef4444'; icon = 'ph-warning-octagon'; }
+    if (type === 'success') { colorBg = '#10b98115'; colorText = '#10b981'; icon = 'ph-check-circle'; }
+
+    let notifs = JSON.parse(localStorage.getItem('notifications') || '[]');
+    notifs.unshift({ id: Date.now(), message: msg, time: 'Just now', icon, colorBg, colorText, isRead: false });
+    localStorage.setItem('notifications', JSON.stringify(notifs));
+    
+    loadNotifications();
+    window.closeModal();
+    if(window.showToast) window.showToast('Notification sent to all residents!', 'success');
+  }, 'Send');
 }
 
 function loadDashboardData() {
@@ -163,13 +292,44 @@ function loadDashboardData() {
       eventsList.className = 'empty-state';
     } else {
       eventsList.innerHTML = '';
-      eventsList.className = 'events-grid';
+      eventsList.className = 'event-grid';
       events.slice(0, 3).forEach(item => {
+        const isUpcoming = item.status === 'Upcoming';
+        const statusColor = isUpcoming ? '#8b5cf6' : '#6b7280'; 
+        const statusBg = isUpcoming ? '#8b5cf615' : '#f3f4f6';
+        
+        let actionBtnHtml = '';
+        if (isUpcoming) {
+          if (item.isRsvpd) {
+            actionBtnHtml = `<button class="btn-pay" style="background-color: #10b981; width: auto; padding: 0.4rem 0.75rem; cursor: default; font-size: 0.8rem; transition: none;"><i class="ph ph-check-circle"></i> Going</button>`;
+          } else {
+            actionBtnHtml = `<button class="btn-pay" style="width: auto; padding: 0.4rem 0.75rem; font-size: 0.8rem;" onclick="window.participateEvent(${item.id})">RSVP Now</button>`;
+          }
+        } else {
+          actionBtnHtml = `<button class="btn-receipt" style="width: auto; padding: 0.4rem 0.75rem; font-size: 0.8rem;"><i class="ph ph-images" style="font-size: 1.1rem;"></i> Gallery</button>`;
+        }
+
         const div = document.createElement('div');
         div.className = 'event-card';
         div.innerHTML = `
-          <h5>${item.title || item.name || 'Event'}</h5>
-          <p><strong>Detail:</strong> ${item.status || item.type || item.date || 'Upcoming'}</p>
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1rem;">
+            <div>
+              <h5 style="margin: 0 0 0.35rem 0; font-size: 1.1rem; color: var(--text-main); font-weight: 600;">${item.title || item.name || 'Event'}</h5>
+              <span style="font-size: 0.8rem; color: var(--text-muted);"><i class="ph ph-map-pin" style="vertical-align: middle;"></i> ${item.location || 'Society Premises'}</span>
+            </div>
+            <div style="display: flex; gap: 0.5rem; align-items: center;">
+              <span style="background: ${statusBg}; color: ${statusColor}; padding: 0.35rem 0.85rem; border-radius: 999px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">${item.status || 'Upcoming'}</span>
+            </div>
+          </div>
+          <div style="margin-bottom: 1.5rem;">
+            <p style="margin: 0; font-size: 0.85rem; color: var(--text-main); font-weight: 500;">
+              <i class="ph ph-clock" style="vertical-align: middle;"></i> ${item.date || 'TBD'}
+            </p>
+          </div>
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; flex-wrap: wrap; border-top: 1px solid var(--card-border); padding-top: 1.25rem;">
+            <span style="font-size: 0.8rem; font-weight: 500; color: var(--text-muted);"><i class="ph ph-users" style="vertical-align: middle;"></i> ${item.participants || 0} attending</span>
+            ${actionBtnHtml}
+          </div>
         `;
         eventsList.appendChild(div);
       });
@@ -182,15 +342,60 @@ function loadAmenities() {
   const container = document.getElementById('amenitiesContainer');
   if (!container) return;
 
-  let data = JSON.parse(localStorage.getItem('amenities'));
-  if (!data || data.length === 0) {
+  let data = JSON.parse(localStorage.getItem('amenities') || '[]');
+  if (!localStorage.getItem('amenities_initialized')) {
     data = [
       { id: 1, title: 'Swimming Pool', timing: '6:00 AM - 10:00 PM', status: 'Available' },
-      { id: 2, title: 'Tennis Court', timing: '8:00 AM - 8:00 PM', status: 'Booked' },
+      { id: 2, title: 'Tennis Court', timing: '8:00 AM - 8:00 PM', status: 'Available' },
       { id: 3, title: 'Community Gym', timing: '24/7 Access', status: 'Available' },
-      { id: 4, title: 'Spa & Sauna', timing: 'Temporarily Closed', status: 'Maintenance' }
+      { id: 4, title: 'Spa & Sauna', timing: 'Temporarily Closed', status: 'Maintenance' },
+      { id: 5, title: 'Clubhouse', timing: '10:00 AM - 11:00 PM', status: 'Available' }
     ];
     localStorage.setItem('amenities', JSON.stringify(data));
+    localStorage.setItem('amenities_initialized', 'true');
+  }
+
+  window.bookAmenity = function(id) {
+    let data = JSON.parse(localStorage.getItem('amenities') || '[]');
+    let item = data.find(d => d.id === id);
+    if (!item) return;
+
+    if (item.status === 'Available') {
+      const content = `
+        <div style="display: flex; flex-direction: column; gap: 1.25rem;">
+          <div>
+            <label style="display: block; font-size: 0.85rem; font-weight: 500; margin-bottom: 0.35rem; color: var(--text-muted);">Select Time Slot</label>
+            <select id="booking-time" style="width: 100%; padding: 0.75rem; border: 1px solid var(--card-border); border-radius: 0.5rem; font-family: inherit; font-size: 0.95rem; background: white; outline: none; transition: border-color 0.2s;">
+              <option>08:00 AM - 09:00 AM</option>
+              <option>09:00 AM - 10:00 AM</option>
+              <option>05:00 PM - 06:00 PM</option>
+              <option>06:00 PM - 07:00 PM</option>
+              <option>07:00 PM - 08:00 PM</option>
+            </select>
+          </div>
+        </div>
+      `;
+      window.openModal('Book ' + item.title, content, () => {
+        const timeSlot = document.getElementById('booking-time').value;
+        item.status = 'Booked';
+        item.timing = timeSlot; // Record the booked time
+        localStorage.setItem('amenities', JSON.stringify(data));
+        loadAmenities();
+        window.closeModal();
+        if(window.showToast) window.showToast(`Successfully booked ${item.title} for ${timeSlot}!`, 'success');
+      }, 'Confirm Booking');
+    }
+  }
+
+  window.resetAmenity = function(id) {
+    let data = JSON.parse(localStorage.getItem('amenities') || '[]');
+    let item = data.find(d => d.id === id);
+    if (item) {
+      item.status = 'Available';
+      localStorage.setItem('amenities', JSON.stringify(data));
+      loadAmenities();
+      if(window.showToast) window.showToast(`${item.title} booking cleared.`, 'info');
+    }
   }
 
   container.innerHTML = '';
@@ -200,22 +405,30 @@ function loadAmenities() {
     else if (item.status === 'Booked') { statusColor = '#f59e0b'; statusBg = '#f59e0b15'; }
     else { statusColor = '#6b7280'; statusBg = '#f3f4f6'; } // Maintenance
 
+    let iconClass = 'ph-star', iconColor = '#0ea5e9', iconBg = '#0ea5e915';
+    const titleLow = (item.title || '').toLowerCase();
+    if (titleLow.includes('pool')) { iconClass = 'ph-swimming-pool'; iconColor = '#0ea5e9'; iconBg = '#0ea5e915'; }
+    else if (titleLow.includes('tennis')) { iconClass = 'ph-tennis-ball'; iconColor = '#8b5cf6'; iconBg = '#8b5cf615'; }
+    else if (titleLow.includes('gym')) { iconClass = 'ph-barbell'; iconColor = '#10b981'; iconBg = '#10b98115'; }
+    else if (titleLow.includes('spa')) { iconClass = 'ph-drop'; iconColor = '#f59e0b'; iconBg = '#f59e0b15'; }
+    else if (titleLow.includes('club')) { iconClass = 'ph-martini'; iconColor = '#ec4899'; iconBg = '#ec489915'; }
+
     const isAvailable = item.status === 'Available';
 
     const div = document.createElement('div');
     div.className = 'amenity-card';
     div.innerHTML = `
-      <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1rem;">
-        <div>
-          <h5 style="margin: 0 0 0.35rem 0; font-size: 1.1rem; color: var(--text-main); font-weight: 600;">${item.title || 'Amenity'}</h5>
-          <span style="font-size: 0.8rem; color: var(--text-muted);"><i class="ph ph-clock" style="vertical-align: middle;"></i> ${item.timing || 'Standard Hours'}</span>
+      <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1.5rem;">
+        <div style="display: flex; gap: 1rem; align-items: center;">
+          <div style="background-color: ${iconBg}; color: ${iconColor}; width: 44px; height: 44px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+             <i class="ph ${iconClass}" style="font-size: 1.5rem;"></i>
+          </div>
+          <div>
+            <h5 style="margin: 0 0 0.35rem 0; font-size: 1.1rem; color: var(--text-main); font-weight: 600;">${item.title || 'Amenity'}</h5>
+            <span style="font-size: 0.8rem; color: var(--text-muted);"><i class="ph ph-clock" style="vertical-align: middle;"></i> ${item.timing || 'Standard Hours'}</span>
+          </div>
         </div>
-        <span style="background: ${statusBg}; color: ${statusColor}; padding: 0.35rem 0.85rem; border-radius: 999px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">${item.status || 'Available'}</span>
-      </div>
-      <div style="margin-bottom: 1.5rem;">
-        <div style="height: 60px; background-color: #f8fafc; border-radius: 0.5rem; display: flex; align-items: center; justify-content: center; border: 1px dashed #cbd5e1;">
-           <i class="ph ph-image" style="font-size: 2rem; color: #cbd5e1;"></i>
-        </div>
+        <span style="background: ${statusBg}; color: ${statusColor}; padding: 0.35rem 0.85rem; border-radius: 999px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; z-index: 1;">${item.status || 'Available'}</span>
       </div>
       <div style="display: flex; gap: 0.75rem; border-top: 1px solid var(--card-border); padding-top: 1.25rem;">
         ${isAvailable 
@@ -345,14 +558,14 @@ function loadEvents() {
           <i class="ph ph-clock" style="vertical-align: middle;"></i> ${item.date || 'TBD'}
         </p>
       </div>
-      <div style="display: flex; align-items: center; justify-content: space-between; border-top: 1px solid var(--card-border); padding-top: 1.25rem;">
+      <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; flex-wrap: wrap; border-top: 1px solid var(--card-border); padding-top: 1.25rem;">
         <span style="font-size: 0.8rem; font-weight: 500; color: var(--text-muted);"><i class="ph ph-users" style="vertical-align: middle;"></i> ${item.participants || 0} attending</span>
         ${isUpcoming 
           ? (item.isRsvpd 
-              ? `<button class="btn-pay" style="background-color: #10b981; width: auto; padding: 0.5rem 1rem; cursor: default;"><i class="ph ph-check-circle"></i> Going</button>`
-              : `<button class="btn-pay" style="background-color: #8b5cf6; width: auto; padding: 0.5rem 1rem; transition: background 0.2s;" onmouseover="this.style.backgroundColor='#7c3aed'" onmouseout="this.style.backgroundColor='#8b5cf6'" onclick="window.participateEvent(${item.id})">RSVP Now</button>`
+              ? `<button class="btn-pay" style="background-color: #10b981; width: auto; padding: 0.5rem 1rem; cursor: default; font-size: 0.8rem; transition: none;"><i class="ph ph-check-circle"></i> Going</button>`
+              : `<button class="btn-pay" style="width: auto; padding: 0.4rem 0.75rem; font-size: 0.8rem;" onclick="window.participateEvent(${item.id})">RSVP Now</button>`
             )
-          : `<button class="btn-receipt" style="width: auto; padding: 0.5rem 1rem;"><i class="ph ph-images" style="font-size: 1.1rem;"></i> Gallery</button>`
+          : `<button class="btn-receipt" style="width: auto; padding: 0.4rem 0.75rem; font-size: 0.8rem;"><i class="ph ph-images" style="font-size: 1.1rem;"></i> Gallery</button>`
         }
       </div>
     `;
@@ -534,13 +747,16 @@ function loadNotices() {
   const container = document.getElementById('notice-boardContainer');
   if (!container) return;
 
-  // Force seed elegant grid layout
-  let data = [
-    { id: 1, title: 'Annual Fire Drill 2026', type: 'Alert', date: '18th Apr 2026', preview: 'Mandatory fire evacuation drill for all residents. Please gather at the main assembly area.' },
-    { id: 2, title: 'Water Box Interruption', type: 'Update', date: '12th Apr 2026', preview: 'Water supply will be paused from 2 PM to 5 PM for scheduled tank maintenance.' },
-    { id: 3, title: 'New Visitor Parking Policy', type: 'Guideline', date: '1st Apr 2026', preview: 'All visitors must register their vehicles at the front gate using the new automated kiosk.' }
-  ];
-  localStorage.setItem('notices', JSON.stringify(data));
+  let data = JSON.parse(localStorage.getItem('notices') || '[]');
+  if (!localStorage.getItem('notices_initialized') || data.length === 0) {
+    data = [
+      { id: 1, title: 'Annual Fire Drill 2026', type: 'Alert', date: '18th Apr 2026', preview: 'Mandatory fire evacuation drill for all residents. Please gather at the main assembly area.' },
+      { id: 2, title: 'Water Box Interruption', type: 'Update', date: '12th Apr 2026', preview: 'Water supply will be paused from 2 PM to 5 PM for scheduled tank maintenance.' },
+      { id: 3, title: 'New Visitor Parking Policy', type: 'Guideline', date: '1st Apr 2026', preview: 'All visitors must register their vehicles at the front gate using the new automated kiosk.' }
+    ];
+    localStorage.setItem('notices', JSON.stringify(data));
+    localStorage.setItem('notices_initialized', 'true');
+  }
 
   container.innerHTML = '';
   if (window.isAdmin) {
@@ -562,14 +778,14 @@ function loadNotices() {
     div.className = 'notice-card';
     div.innerHTML = `
       <div style="display: flex; gap: 1rem; align-items: flex-start; margin-bottom: 1rem;">
-        <div style="background-color: ${typeBg}; color: ${typeColor}; width: 44px; height: 44px; border-radius: 0.5rem; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
-          <i class="ph ${icon}" style="font-size: 1.5rem;"></i>
+        <div style="background-color: ${typeBg}; color: ${typeColor}; width: 48px; height: 48px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; box-shadow: 0 4px 6px ${typeBg};">
+          <i class="ph ${icon}" style="font-size: 1.85rem;"></i>
         </div>
         <div style="flex-grow: 1;">
           <h5 style="margin: 0 0 0.35rem 0; font-size: 1.05rem; color: var(--text-main); font-weight: 600; line-height: 1.3;">${item.title || 'Notice'}</h5>
           <span style="font-size: 0.75rem; color: var(--text-muted);"><i class="ph ph-calendar-blank"></i> ${item.date || 'Recent'}</span>
         </div>
-        ${window.isAdmin ? `<button onclick="window.deleteItem('notices', ${item.id}, 'loadNotices')" style="background: #fee2e2; border: none; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; color: #ef4444; transition: transform 0.2s; box-shadow: 0 2px 4px rgba(239, 68, 68, 0.1);" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='none'" title="Delete Notice"><i class="ph ph-trash"></i></button>` : ''}
+        ${window.isAdmin ? `<button onclick="window.deleteItem('notices', ${item.id}, 'loadNotices')" style="background: none; border: none; font-size: 1.2rem; cursor: pointer; color: #9ca3af; transition: color 0.2s;" onmouseover="this.style.color='#ef4444'" onmouseout="this.style.color='#9ca3af'" title="Delete Notice"><i class="ph ph-trash"></i></button>` : ''}
       </div>
       <div style="margin-bottom: 1.5rem;">
         <p style="margin: 0; font-size: 0.85rem; color: var(--text-muted); line-height: 1.5;">
@@ -582,6 +798,50 @@ function loadNotices() {
     `;
     container.appendChild(div);
   });
+}
+
+window.openAddNoticeModal = function() {
+  const content = `
+    <div style="display: flex; flex-direction: column; gap: 1.25rem;">
+      <div>
+        <label style="display: block; font-size: 0.85rem; font-weight: 500; margin-bottom: 0.35rem; color: var(--text-muted);">Notice Title</label>
+        <input type="text" id="notice-title" placeholder="e.g. Water Supply Pause" style="width: 100%; padding: 0.75rem; border: 1px solid var(--card-border); border-radius: 0.5rem; font-family: inherit; font-size: 0.95rem; outline: none;">
+      </div>
+      <div>
+        <label style="display: block; font-size: 0.85rem; font-weight: 500; margin-bottom: 0.35rem; color: var(--text-muted);">Preview Description</label>
+        <textarea id="notice-desc" placeholder="Brief info about the notice..." rows="3" style="width: 100%; padding: 0.75rem; border: 1px solid var(--card-border); border-radius: 0.5rem; font-family: inherit; font-size: 0.95rem; outline: none;"></textarea>
+      </div>
+      <div>
+        <label style="display: block; font-size: 0.85rem; font-weight: 500; margin-bottom: 0.35rem; color: var(--text-muted);">Category Type</label>
+        <select id="notice-type" style="width: 100%; padding: 0.75rem; border: 1px solid var(--card-border); border-radius: 0.5rem; font-family: inherit; font-size: 0.95rem; background: white; outline: none;">
+          <option>Alert</option>
+          <option>Update</option>
+          <option>Guideline</option>
+        </select>
+      </div>
+    </div>
+  `;
+  window.openModal('Publish New Notice', content, () => {
+    const title = document.getElementById('notice-title').value;
+    const desc = document.getElementById('notice-desc').value;
+    const type = document.getElementById('notice-type').value;
+    if(!title.trim()) {
+      if(window.showToast) window.showToast('Please enter a notice title', 'error');
+      return;
+    }
+    
+    let notices = JSON.parse(localStorage.getItem('notices') || '[]');
+    const today = new Date();
+    const options = { day: '2-digit', month: 'short', year: 'numeric' };
+    const formattedDate = today.toLocaleDateString('en-GB', options).replace(/ /g, 'th ').replace('th th', 'th ');
+    
+    notices.unshift({ id: Date.now(), title: title, type: type, date: formattedDate, preview: desc });
+    localStorage.setItem('notices', JSON.stringify(notices));
+    
+    loadNotices();
+    window.closeModal();
+    if(window.showToast) window.showToast('Notice published successfully!', 'success');
+  }, 'Publish Notice');
 }
 
 function loadReports() {
