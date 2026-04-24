@@ -1,3 +1,19 @@
+// --- MASTER PASSWORD PROTECTION ---
+(function() {
+  const MASTER_PASSWORD = "admin"; // <--- Password yaha change kar sakte ho
+  
+  if (!sessionStorage.getItem('app_unlocked')) {
+    let attempt = prompt("🔒 Application is Locked. Please enter the master password:");
+    if (attempt === MASTER_PASSWORD) {
+      sessionStorage.setItem('app_unlocked', 'true');
+    } else {
+      document.documentElement.innerHTML = "<body style='background:#111827;color:#ef4444;display:flex;justify-content:center;align-items:center;height:100vh;font-family:sans-serif;margin:0;'><div style='text-align:center;'><h1 style='font-size:3rem;margin-bottom:1rem;'>🔒</h1><h2>Access Denied</h2><p style='color:#9ca3af;'>Incorrect Password. Please refresh the page to try again.</p></div></body>";
+      throw new Error("Application access denied. Incorrect password.");
+    }
+  }
+})();
+// ----------------------------------
+
 // --- GLOBAL AUTHENTICATION CHECK ---
 (function() {
   const isLoginPage = window.location.pathname.endsWith('login.html');
@@ -1394,3 +1410,57 @@ window.openAddReportModal = function() {
     }, 800);
   }, 'Upload');
 };
+
+// --- ANTI-SCREENSHOT & SECURITY SYSTEM ---
+(function() {
+  // 1. Disable Right-Click
+  document.addEventListener('contextmenu', function(e) {
+    e.preventDefault();
+  });
+
+  // 2. Disable Keyboard Shortcuts (F12, Ctrl+Shift+I, Ctrl+U, etc.)
+  document.addEventListener('keydown', function(e) {
+    if (
+      e.key === 'F12' || 
+      (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'J' || e.key === 'C')) || 
+      (e.ctrlKey && (e.key === 'U' || e.key === 'P' || e.key === 'S' || e.key === 'c'))
+    ) {
+      e.preventDefault();
+      return false;
+    }
+  });
+
+  // 3. Clear Clipboard on PrintScreen
+  document.addEventListener('keyup', function(e) {
+    if (e.key === 'PrintScreen' || e.key === 'Meta') {
+      try {
+        navigator.clipboard.writeText("");
+      } catch (err) {}
+      if(window.showToast) {
+         window.showToast('Screenshots are disabled for security!', 'error');
+      } else {
+         alert('Screenshots are disabled for security reasons!');
+      }
+    }
+  });
+
+  // 4. Black Screen on Window Blur (Snipping Tool / Screen Recording defense)
+  document.addEventListener('DOMContentLoaded', () => {
+    let overlay = document.createElement('div');
+    overlay.id = 'security-protect-overlay';
+    overlay.innerHTML = '<div style="color:white;text-align:center;font-family:sans-serif;font-size:1.5rem;padding-top:40vh;"><i class="ph ph-shield-warning" style="font-size:4rem;color:#ef4444;margin-bottom:1rem;display:block;"></i>Security Protection Active<br><span style="font-size:1rem;color:#9ca3af;font-weight:normal;">Screen recording and screenshots are not permitted.</span></div>';
+    overlay.style.cssText = 'position:fixed; inset:0; background:#000; z-index:9999999; display:none; justify-content:center; align-items:center; flex-direction:column;';
+    document.body.appendChild(overlay);
+
+    let hideContent = () => { overlay.style.display = 'flex'; };
+    let showContent = () => { overlay.style.display = 'none'; };
+
+    window.addEventListener('blur', hideContent);
+    window.addEventListener('focus', showContent);
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) hideContent();
+      else showContent();
+    });
+  });
+})();
+// -----------------------------------------
